@@ -1,4 +1,8 @@
-"""关口计量接口：维护计量表计，覆盖记录示数、标记异常、送检校验等动作。"""
+"""关口计量接口：维护计量表计，覆盖记录示数、标记异常、送检校验、换表保存与校验读取。
+
+读数核算只有一份口径（app/services/meter_reading.py）：列表显示、换表保存、
+校验读取都调用它，路由层不另做核算判断。
+"""
 from __future__ import annotations
 
 from typing import Any
@@ -46,6 +50,24 @@ def create_entry(payload: EntryPayload) -> ActionResult:
     if missing:
         return ActionResult(ok=False, message=f"缺少必填字段：{'、'.join(missing)}")
     return ActionResult(ok=True, message="计量表计已登记", entry=entry)
+
+
+@router.post("/{entry_id}/replace", response_model=ActionResult)
+def replace_meter(entry_id: int, payload: EntryPayload) -> ActionResult:
+    """换表保存：旧表止码、新表起码都走共用核算口径，换表当天分段结算、不跨表相减。"""
+    entry, message = service.replace_meter(entry_id, payload.values)
+    if entry is None:
+        return ActionResult(ok=False, message=message)
+    return ActionResult(ok=True, message=message, entry=entry)
+
+
+@router.get("/{entry_id}/check")
+def check_entry(entry_id: int) -> dict[str, Any]:
+    """校验读取：返回与列表显示、换表保存完全相同的核算结果。"""
+    result = service.check_entry(entry_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"计量表计 {entry_id} 不存在或已归档")
+    return result
 
 
 @router.post("/{entry_id}/actions", response_model=ActionResult)
