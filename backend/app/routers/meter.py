@@ -58,6 +58,24 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     return ActionResult(ok=True, message=message, entry=entry)
 
 
+@router.post("/{entry_id}/replacement", response_model=ActionResult)
+def save_replacement(entry_id: int, payload: EntryPayload) -> ActionResult:
+    """换表保存：写入旧表止码与新表起码，返回与列表、校验读取一致的共用核算结果。"""
+    entry, message = service.save_replacement(entry_id, payload.values)
+    if entry is None:
+        return ActionResult(ok=False, message=message)
+    return ActionResult(ok=True, message=message, entry=entry)
+
+
+@router.get("/{entry_id}/calibration", response_model=dict)
+def read_calibration(entry_id: int) -> dict:
+    """校验入口读取：与列表显示、换表保存共用同一份核算结果。"""
+    result = service.read_calibration(entry_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"计量表计 {entry_id} 不存在或已归档")
+    return result
+
+
 @router.get("/export")
 def export_entries() -> dict[str, Any]:
     """导出关口计量清单：返回当前过滤条件下的全量数据。"""
